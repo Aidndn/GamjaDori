@@ -2,6 +2,12 @@ import type { CourseItemCategory, TravelStyleId } from "@/types/course";
 import type { NormalizedTourPlace } from "@/types/tour";
 import type { TouristAttraction } from "@/types/attraction";
 import { getAttractionsByCityId } from "@/data/attractions";
+import {
+  getWeatherPreference,
+  scorePlaceForWeather,
+  type WeatherInfo,
+  type WeatherPreference,
+} from "@/utils/weather";
 
 /** Allowed TourAPI content types for recommendations */
 export const ALLOWED_CONTENT_TYPES = new Set(["12", "14", "15", "38", "39"]);
@@ -30,7 +36,7 @@ const GANGWON_CITY_NAMES = [
 ];
 
 const EXCLUDED_KEYWORDS =
-  /호텔|리조트|모텔|펜션|숙박|콘도|민박|게스트하우스|온천|찜질방|터미널|주유소|편의점|약국|병원|학교|대학|주차장|세차|렌터카|골프장|스키장(?!리프트)|연수원|훈련원/i;
+  /호텔|리조트|모텔|펜션|숙박|콘도|민박|게스트하우스|온천|찜질방|터미널|주유소|편의점|약국|병원|학교|대학|주차장|세차|렌터카|골프장|스키장(?!리프트)|연수원|훈련원|아파트|오피스텔|부동산|중개|공인중개|행정복지|주민센터|시청|군청|경찰|소방|우체국|은행|ATM|헬스장|피트니스|학원|교회|성당|사찰(?!박물관)/i;
 
 const STYLE_PATTERNS: Record<TravelStyleId, RegExp> = {
   nature: /해변|바다|산|호수|공원|계곡|숲|섬|동굴|폭포|해변|숲길|트레킹|자연|국립공원|설악|치악|오대산/i,
@@ -266,35 +272,46 @@ export function dedupePlaces(places: NormalizedTourPlace[]): NormalizedTourPlace
 function matchesSlot(place: NormalizedTourPlace, slot: CourseItemCategory): boolean {
   const rule = SLOT_RULES[slot];
   const text = `${place.title} ${place.category} ${place.description}`;
-
-  if (rule.contentTypes.includes(place.contentTypeId) && rule.keywords.test(text)) {
-    return true;
-  }
-
-  if (slot === "lunch" || slot === "dinner") {
-    return (
-      place.contentTypeId === "39" ||
-      place.category === "맛집" ||
-      /시장|식당|먹거리|음식/.test(text)
-    );
-  }
+  const isFoodTitle = /식당|카페|시장|맛집|커피|베이커리/.test(place.title);
 
   if (slot === "cafe") {
     return (
-      place.contentTypeId === "39" ||
       place.category === "카페" ||
-      /카페|커피|디저트|브런치/.test(text)
+      /카페|커피|디저트|브런치|로스터리|베이커리|티룸/.test(text)
     );
   }
 
-  if (slot === "morning" || slot === "afternoon" || slot === "sightseeing") {
+  if (slot === "lunch") {
+    if (/카페|커피|디저트|브런치|로스터리/.test(text) && !/식당|맛집|시장/.test(text)) {
+      return false;
+    }
     return (
-      ["12", "14"].includes(place.contentTypeId) &&
-      !/식당|카페|시장|맛집/.test(place.title)
-    ) || rule.keywords.test(text);
+      place.contentTypeId === "39" ||
+      place.category === "맛집" ||
+      /맛집|식당|시장|먹거리|음식|닭|회|국수|한우|순두부/.test(text)
+    );
   }
 
-  return rule.keywords.test(text);
+  if (slot === "dinner") {
+    return (
+      place.contentTypeId === "39" ||
+      place.contentTypeId === "38" ||
+      place.contentTypeId === "15" ||
+      place.category === "맛집" ||
+      /시장|야시장|야경|거리|일몰|저녁|먹거리|해산물|중앙시장|식당/.test(text)
+    );
+  }
+
+  // morning / sightseeing / afternoon — attractions only
+  if (isFoodTitle) return false;
+  if (rule.contentTypes.includes(place.contentTypeId) && rule.keywords.test(text)) {
+    return true;
+  }
+  return (
+    ["12", "14"].includes(place.contentTypeId) &&
+    !isFoodTitle &&
+    rule.keywords.test(text)
+  );
 }
 
 const SLOT_GROUPS: Record<CourseItemCategory, "attraction" | "food" | "cafe" | "evening"> = {
@@ -315,27 +332,49 @@ function placeMatchesGroup(
     case "attraction":
       return (
         ["12", "14"].includes(place.contentTypeId) &&
-        !/식당|카페|맛집|시장/.test(place.title)
-      ) || /관광|해변|산|공원|박물관|동굴|정|섬/.test(text);
+        !/식당|카페|맛집|시장|커피/.test(place.title)
+      );
     case "food":
       return (
-        place.contentTypeId === "39" ||
-        place.category === "맛집" ||
-        /식당|시장|먹거리|음식|닭|회|국수/.test(text)
+        (place.contentTypeId === "39" ||
+          place.category === "맛집" ||
+          /식당|시장|먹거리|음식|닭|회|국수/.test(text)) &&
+        !/카페|커피|디저트|브런치|로스터리/.test(place.title)
       );
     case "cafe":
       return (
         place.category === "카페" ||
-        /카페|커피|디저트|브런치|로스터리/.test(text)
+        /카페|커피|디저트|브런치|로스터리|베이커리/.test(text)
       );
     case "evening":
       return (
-        /시장|야시장|야경|일몰|거리|해변/.test(text) ||
-        place.contentTypeId === "38"
+        place.contentTypeId === "39" ||
+        place.contentTypeId === "38" ||
+        place.contentTypeId === "15" ||
+        /시장|야시장|야경|일몰|거리|해변|해산물|먹거리/.test(text)
       );
     default:
-      return true;
+      return false;
   }
+}
+
+function scorePlaceForSlot(
+  place: NormalizedTourPlace,
+  style: TravelStyleId,
+  weatherPref: WeatherPreference,
+  slotBonus: number,
+): number {
+  return (
+    scorePlaceForStyle(place, style) +
+    slotBonus +
+    scorePlaceForWeather(
+      place.title,
+      place.category,
+      place.description,
+      place.contentTypeId,
+      weatherPref,
+    )
+  );
 }
 
 function pickPlaceForSlot(
@@ -343,10 +382,12 @@ function pickPlaceForSlot(
   slot: CourseItemCategory,
   style: TravelStyleId,
   used: Set<string>,
+  weatherPref: WeatherPreference = "mixed",
 ): NormalizedTourPlace | undefined {
   const group = SLOT_GROUPS[slot];
 
-  const candidates = pool
+  // Strict: must match both slot category and group
+  const strict = pool
     .filter(
       (place) =>
         !used.has(place.title) &&
@@ -355,15 +396,23 @@ function pickPlaceForSlot(
     )
     .map((place) => ({
       place,
-      score: scorePlaceForStyle(place, style) + 3,
+      score: scorePlaceForSlot(place, style, weatherPref, 4),
     }))
     .sort((a, b) => b.score - a.score);
 
-  if (candidates.length > 0) return candidates[0].place;
+  if (strict.length > 0) return strict[0].place;
 
+  // Soft group fallback — only same category group, require non-negative style fit for food/cafe
   const groupFallback = pool
     .filter((place) => !used.has(place.title) && placeMatchesGroup(place, group))
-    .map((place) => ({ place, score: scorePlaceForStyle(place, style) }))
+    .map((place) => ({
+      place,
+      score: scorePlaceForSlot(place, style, weatherPref, 0),
+    }))
+    .filter((entry) => {
+      if (group === "cafe" || group === "food") return entry.score >= 0;
+      return true;
+    })
     .sort((a, b) => b.score - a.score);
 
   return groupFallback[0]?.place;
@@ -397,6 +446,7 @@ export function buildCoursePlacePool(
   cityId: string | undefined,
   style: TravelStyleId,
   excludeName?: string,
+  weatherPref: WeatherPreference = "mixed",
 ): NormalizedTourPlace[] {
   const base = cityPlaces?.length
     ? filterTourPlaces(cityPlaces, cityName)
@@ -406,14 +456,34 @@ export function buildCoursePlacePool(
 
   const styleSorted = [...base]
     .filter((p) => p.title !== excludeName)
-    .sort((a, b) => scorePlaceForStyle(b, style) - scorePlaceForStyle(a, style));
+    .sort((a, b) => {
+      const scoreA =
+        scorePlaceForStyle(a, style) +
+        scorePlaceForWeather(
+          a.title,
+          a.category,
+          a.description,
+          a.contentTypeId,
+          weatherPref,
+        );
+      const scoreB =
+        scorePlaceForStyle(b, style) +
+        scorePlaceForWeather(
+          b.title,
+          b.category,
+          b.description,
+          b.contentTypeId,
+          weatherPref,
+        );
+      return scoreB - scoreA;
+    });
 
   if (styleSorted.length >= 3) return styleSorted;
 
   const curated = cityId ? getCuratedFallbackPlaces(cityId, cityName) : [];
   return dedupePlaces([
     ...styleSorted,
-    ...curated.filter((p) => p.title !== excludeName),
+    ...curated.filter((p) => p.title !== excludeName && belongsToCity(p, cityName)),
   ]);
 }
 
@@ -429,6 +499,7 @@ export function assignPlacesToCourseSlots(
   primary?: { name: string; city: string; category?: string; id: string; image?: string },
   cityPlaces?: NormalizedTourPlace[],
   cityId?: string,
+  weather?: WeatherInfo | null,
 ): Array<{
   category: CourseItemCategory;
   time: string;
@@ -439,8 +510,23 @@ export function assignPlacesToCourseSlots(
   image?: string;
 }> {
   const cityName = primary?.city ?? cityPlaces?.[0]?.city ?? "강릉";
-  const pool = buildCoursePlacePool(cityPlaces, cityName, cityId, style, primary?.name);
+  const weatherPref = weather
+    ? getWeatherPreference(weather.description, weather.temperature)
+    : "mixed";
+  const pool = buildCoursePlacePool(
+    cityPlaces,
+    cityName,
+    cityId,
+    style,
+    primary?.name,
+    weatherPref,
+  );
   const used = new Set<string>();
+
+  // Prefer curated same-city fallback titles when pool is thin
+  const curatedTitles = cityId
+    ? new Set(getCuratedFallbackPlaces(cityId, cityName).map((p) => p.title))
+    : new Set<string>();
 
   return slots.map((slot, index) => {
     if (index === 0 && primary) {
@@ -455,17 +541,52 @@ export function assignPlacesToCourseSlots(
       };
     }
 
-    const place = pickPlaceForSlot(pool, slot.category, style, used);
+    const place = pickPlaceForSlot(pool, slot.category, style, used, weatherPref);
     if (place) {
       used.add(place.title);
+      const weatherNote =
+        weatherPref === "indoor" &&
+        (slot.category === "morning" ||
+          slot.category === "afternoon" ||
+          slot.category === "sightseeing")
+          ? " · 날씨에 맞춘 추천"
+          : weatherPref === "outdoor" &&
+              (slot.category === "morning" || slot.category === "sightseeing")
+            ? " · 맑은 날 야외 추천"
+            : "";
       return {
         ...slot,
         title: place.title,
-        description: place.description || slot.description,
+        description: (place.description || slot.description) + weatherNote,
         icon: iconForCategory(place.category),
         contentId: place.contentId,
         image: place.image,
       };
+    }
+
+    // Prefer curated city place over generic template title when available
+    if (cityId) {
+      const curatedPool = getCuratedFallbackPlaces(cityId, cityName).filter(
+        (p) => !used.has(p.title) && curatedTitles.has(p.title),
+      );
+      const curatedPick = pickPlaceForSlot(
+        curatedPool,
+        slot.category,
+        style,
+        used,
+        weatherPref,
+      );
+      if (curatedPick) {
+        used.add(curatedPick.title);
+        return {
+          ...slot,
+          title: curatedPick.title,
+          description: curatedPick.description || slot.description,
+          icon: iconForCategory(curatedPick.category),
+          contentId: curatedPick.contentId,
+          image: curatedPick.image,
+        };
+      }
     }
 
     return {

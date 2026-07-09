@@ -72,10 +72,12 @@ function SectionHeader({
   title,
   subtitle,
   action,
+  href,
 }: {
   title: string;
   subtitle?: string;
   action?: string;
+  href?: string;
 }) {
   return (
     <div className="mb-4 flex items-end justify-between">
@@ -83,10 +85,13 @@ function SectionHeader({
         <h3 className="text-[19px] font-bold tracking-tight text-[#0F172A]">{title}</h3>
         {subtitle && <p className="mt-1 text-[13px] text-[#64748B]">{subtitle}</p>}
       </div>
-      {action && (
-        <button type="button" className="text-[13px] font-semibold text-[#3B82F6]">
+      {action && href && (
+        <Link href={href} className="text-[13px] font-semibold text-[#3B82F6]">
           {action}
-        </button>
+        </Link>
+      )}
+      {action && !href && (
+        <span className="text-[13px] font-semibold text-[#3B82F6]">{action}</span>
       )}
     </div>
   );
@@ -148,7 +153,7 @@ export default function Home() {
                 AI가 오늘 가장 잘 어울리는 여행을 추천합니다.
               </p>
               <Link
-                href="/dori"
+                href="/course"
                 className="mt-5 inline-flex w-fit items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-bold text-[#1E40AF] shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition-transform active:scale-[0.97]"
               >
                 <span>🥔</span>
@@ -160,7 +165,7 @@ export default function Home() {
 
         {/* Popular Courses */}
         <section>
-          <SectionHeader title="인기 코스" subtitle="지금 가장 많이 찾는 여행" action="전체보기" />
+          <SectionHeader title="인기 코스" subtitle="지금 가장 많이 찾는 여행" href="/map" action="전체보기" />
           <HomePopularCourses />
         </section>
 
@@ -178,12 +183,12 @@ export default function Home() {
               <p className="mt-2 text-[13px] leading-relaxed text-[#64748B]">
                 AI가 오늘의 여행지를 골라드립니다.
               </p>
-              <button
-                type="button"
-                className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#3B82F6] to-[#22C55E] py-3.5 text-[15px] font-bold text-white shadow-[0_6px_20px_rgba(59,130,246,0.3)] transition-transform active:scale-[0.98]"
+              <Link
+                href="/map"
+                className="mt-4 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#3B82F6] to-[#22C55E] py-3.5 text-[15px] font-bold text-white shadow-[0_6px_20px_rgba(59,130,246,0.3)] transition-transform active:scale-[0.98]"
               >
                 랜덤 추천받기
-              </button>
+              </Link>
             </div>
           </div>
         </section>
@@ -207,12 +212,12 @@ export default function Home() {
               <br />
               AI가 코스를 만들어드립니다.
             </p>
-            <button
-              type="button"
-              className="mt-5 w-full rounded-2xl bg-white py-4 text-[16px] font-bold text-[#1D4ED8] shadow-[0_6px_24px_rgba(0,0,0,0.15)] transition-transform active:scale-[0.98]"
+            <Link
+              href="/course"
+              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-white py-4 text-[16px] font-bold text-[#1D4ED8] shadow-[0_6px_24px_rgba(0,0,0,0.15)] transition-transform active:scale-[0.98]"
             >
               AI 여행 시작하기
-            </button>
+            </Link>
           </div>
         </section>
 
@@ -221,9 +226,9 @@ export default function Home() {
           <SectionHeader title="AI 여행 스타일" subtitle="나에게 맞는 여행 유형을 선택하세요" />
           <div className="grid grid-cols-2 gap-3.5">
             {travelStyles.map((style) => (
-              <button
+              <Link
                 key={style.type}
-                type="button"
+                href="/course"
                 className={`rounded-[22px] border bg-gradient-to-b p-4 text-left transition-transform active:scale-[0.98] ${style.accent} ${style.border} ${style.shadow}`}
               >
                 <StyleIllustration type={style.illustration} />
@@ -238,7 +243,7 @@ export default function Home() {
                 <p className="mt-2 text-[12px] leading-[1.6] text-[#64748B]">
                   {style.description}
                 </p>
-              </button>
+              </Link>
             ))}
           </div>
         </section>

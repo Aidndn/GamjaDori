@@ -27,16 +27,6 @@ function IconSearch() {
   );
 }
 
-function IconMic() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-      <line x1="12" x2="12" y1="19" y2="22" />
-    </svg>
-  );
-}
-
 function IconClock() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -88,6 +78,8 @@ export function HomeSearchBar() {
   const router = useRouter();
   const sectionRef = useRef<HTMLElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestAbortRef = useRef<AbortController | null>(null);
+  const resultsAbortRef = useRef<AbortController | null>(null);
   const { hydrated, recentSearches, addRecentSearch, removeRecentSearch } = useRecentSearches();
 
   const [query, setQuery] = useState("");
@@ -98,13 +90,17 @@ export function HomeSearchBar() {
   const [suggestions, setSuggestions] = useState<NormalizedTourPlace[]>([]);
   const [results, setResults] = useState<NormalizedTourPlace[]>([]);
   const [suggestChecked, setSuggestChecked] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
-  const fetchSearch = useCallback(async (keyword: string, limit: number) => {
+  const fetchSearch = useCallback(async (keyword: string, limit: number, signal?: AbortSignal) => {
     const response = await fetch(
       `/api/tour/search?keyword=${encodeURIComponent(keyword)}&limit=${limit}`,
+      { signal },
     );
     const json = (await response.json()) as SearchResponse;
-    if (!json.success) return [];
+    if (!json.success) {
+      throw new Error(json.error ?? "검색에 실패했습니다.");
+    }
     return json.results ?? [];
   }, []);
 
@@ -122,31 +118,59 @@ export function HomeSearchBar() {
       setSubmitted(false);
       setSuggestions([]);
       setResults([]);
+      setSearchError(null);
     },
     [addRecentSearch, router],
   );
 
   const runSuggest = useCallback(
     async (keyword: string) => {
+      suggestAbortRef.current?.abort();
+      const controller = new AbortController();
+      suggestAbortRef.current = controller;
+
       setSuggestLoading(true);
-      const items = await fetchSearch(keyword, SUGGEST_LIMIT);
-      setSuggestions(items);
-      setSuggestChecked(true);
-      setSuggestLoading(false);
+      setSearchError(null);
+      try {
+        const items = await fetchSearch(keyword, SUGGEST_LIMIT, controller.signal);
+        if (controller.signal.aborted) return;
+        setSuggestions(items);
+        setSuggestChecked(true);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setSuggestions([]);
+        setSuggestChecked(true);
+        setSearchError(error instanceof Error ? error.message : "검색에 실패했습니다.");
+      } finally {
+        if (!controller.signal.aborted) setSuggestLoading(false);
+      }
     },
     [fetchSearch],
   );
 
   const runSubmitSearch = useCallback(
     async (keyword: string) => {
+      resultsAbortRef.current?.abort();
+      const controller = new AbortController();
+      resultsAbortRef.current = controller;
+
       setResultsLoading(true);
       setSubmitted(true);
       setFocused(false);
+      setSearchError(null);
       addRecentSearch(keyword);
 
-      const items = await fetchSearch(keyword, RESULT_LIMIT);
-      setResults(items);
-      setResultsLoading(false);
+      try {
+        const items = await fetchSearch(keyword, RESULT_LIMIT, controller.signal);
+        if (controller.signal.aborted) return;
+        setResults(items);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setResults([]);
+        setSearchError(error instanceof Error ? error.message : "검색에 실패했습니다.");
+      } finally {
+        if (!controller.signal.aborted) setResultsLoading(false);
+      }
     },
     [addRecentSearch, fetchSearch],
   );
@@ -159,6 +183,7 @@ export function HomeSearchBar() {
       setSuggestions([]);
       setSuggestChecked(false);
       setSuggestLoading(false);
+      setSearchError(null);
       return;
     }
 
@@ -185,6 +210,13 @@ export function HomeSearchBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      suggestAbortRef.current?.abort();
+      resultsAbortRef.current?.abort();
+    };
+  }, []);
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = query.trim();
@@ -202,7 +234,11 @@ export function HomeSearchBar() {
   const showRecent = showDropdown && hydrated && !query.trim() && recentSearches.length > 0;
   const showSuggestPanel = showDropdown && !!query.trim();
   const showSuggestEmpty =
-    showSuggestPanel && suggestChecked && !suggestLoading && suggestions.length === 0;
+    showSuggestPanel &&
+    suggestChecked &&
+    !suggestLoading &&
+    suggestions.length === 0 &&
+    !searchError;
 
   return (
     <section ref={sectionRef} className="relative">
@@ -220,6 +256,7 @@ export function HomeSearchBar() {
             setQuery(event.target.value);
             setSubmitted(false);
             setResults([]);
+            setSearchError(null);
           }}
           onFocus={() => setFocused(true)}
           placeholder="어디로 여행 가고 싶나요?"
@@ -227,13 +264,22 @@ export function HomeSearchBar() {
           autoComplete="off"
           aria-label="여행지 검색"
         />
-        <button
-          type="button"
-          aria-label="음성 검색"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-[#3B82F6] transition-colors hover:bg-[#DBEAFE]"
-        >
-          <IconMic />
-        </button>
+        {query.trim() && (
+          <button
+            type="button"
+            aria-label="검색어 지우기"
+            onClick={() => {
+              setQuery("");
+              setSubmitted(false);
+              setResults([]);
+              setSuggestions([]);
+              setSearchError(null);
+            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F5F9] text-[12px] font-bold text-[#64748B] transition-colors hover:bg-[#E2E8F0]"
+          >
+            ✕
+          </button>
+        )}
       </form>
 
       {showDropdown && (showRecent || showSuggestPanel) && (
@@ -274,6 +320,12 @@ export function HomeSearchBar() {
             </p>
           )}
 
+          {showSuggestPanel && searchError && !suggestLoading && (
+            <p className="px-4 py-6 text-center text-[13px] font-medium text-[#DC2626]">
+              {searchError}
+            </p>
+          )}
+
           {showSuggestEmpty && (
             <p className="px-4 py-6 text-center text-[13px] font-medium text-[#64748B]">
               검색 결과가 없어요.
@@ -305,13 +357,19 @@ export function HomeSearchBar() {
             </p>
           )}
 
-          {!resultsLoading && results.length === 0 && (
+          {!resultsLoading && searchError && (
+            <p className="rounded-2xl bg-[#FEF2F2] py-6 text-center text-[13px] font-medium text-[#DC2626] ring-1 ring-[#FECACA]">
+              {searchError}
+            </p>
+          )}
+
+          {!resultsLoading && !searchError && results.length === 0 && (
             <p className="rounded-2xl bg-[#F8FAFC] py-6 text-center text-[13px] font-medium text-[#64748B] ring-1 ring-[#F1F5F9]">
               검색 결과가 없어요.
             </p>
           )}
 
-          {!resultsLoading && results.length > 0 && (
+          {!resultsLoading && !searchError && results.length > 0 && (
             <>
               <p className="text-[12px] font-semibold text-[#64748B]">
                 &quot;{query.trim()}&quot; 검색 결과 {results.length}건

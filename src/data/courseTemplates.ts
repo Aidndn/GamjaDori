@@ -10,6 +10,7 @@ import { getStyleCourseTemplate } from "@/data/styleCourseTemplates";
 import { assignPlacesToCourseSlots } from "@/utils/tourRecommendations";
 import { applyTravelTimes } from "@/utils/travelTime";
 import { gangwonCities } from "@/data/gangwonCities";
+import type { WeatherInfo } from "@/utils/weather";
 
 function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -48,6 +49,7 @@ export function generateOneDayCourse(
   travelStyle: TravelStyleId = "nature",
   variantIndex = 0,
   cityPlaces?: NormalizedTourPlace[],
+  weather?: WeatherInfo | null,
 ): GeneratedCourse {
   const primary = savedAttractions[0];
   const city = primary?.city ?? cityPlaces?.[0]?.city ?? "강릉";
@@ -75,6 +77,7 @@ export function generateOneDayCourse(
       : undefined,
     cityPlaces,
     cityId,
+    weather,
   );
 
   const items = applyTravelTimes(
@@ -109,8 +112,15 @@ export function regenerateCourse(
   savedAttractions: SavedAttraction[],
   currentCourse?: GeneratedCourse,
   cityPlaces?: NormalizedTourPlace[],
+  weather?: WeatherInfo | null,
 ): GeneratedCourse {
   const style = currentCourse?.travelStyle ?? "nature";
   const nextVariant = ((currentCourse?.variantIndex ?? 0) + 1) % 2;
-  return generateOneDayCourse(savedAttractions, style, nextVariant, cityPlaces);
+  return generateOneDayCourse(
+    savedAttractions,
+    style,
+    nextVariant,
+    cityPlaces,
+    weather,
+  );
 }

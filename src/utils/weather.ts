@@ -82,3 +82,53 @@ export function resolveCourseCity(...cities: (string | undefined)[]): string {
   }
   return "강릉";
 }
+
+/** Preference used by AI course slot scoring */
+export type WeatherPreference = "outdoor" | "indoor" | "mixed";
+
+const INDOOR_WEATHER = new Set(["비", "이슬비", "천둥번개", "안개", "눈"]);
+
+export function getWeatherPreference(
+  description: string,
+  temperature: number,
+): WeatherPreference {
+  if (INDOOR_WEATHER.has(description)) return "indoor";
+  if (description === "맑음" && temperature >= 18) return "outdoor";
+  if (temperature <= 5) return "indoor";
+  if (temperature >= 30) return "indoor";
+  return "mixed";
+}
+
+const OUTDOOR_PLACE =
+  /해변|바다|산|호수|공원|계곡|숲|섬|폭포|트레킹|산책|전망|일몰|노을|스카이워크|출렁|해안|드라이브/i;
+const INDOOR_PLACE =
+  /박물관|미술관|전시|카페|커피|실내|체험관|아쿠아|시장|쇼핑|문화|한지|도서관|서점|온천(?!호텔)/i;
+
+export function scorePlaceForWeather(
+  title: string,
+  category: string,
+  description: string,
+  contentTypeId: string,
+  preference: WeatherPreference,
+): number {
+  if (preference === "mixed") return 0;
+
+  const text = `${title} ${category} ${description}`;
+  const isOutdoor = OUTDOOR_PLACE.test(text) || contentTypeId === "12";
+  const isIndoor =
+    INDOOR_PLACE.test(text) ||
+    contentTypeId === "14" ||
+    contentTypeId === "38" ||
+    /카페|커피/.test(text);
+
+  if (preference === "indoor") {
+    if (isIndoor) return 3;
+    if (isOutdoor && !isIndoor) return -2;
+    return 0;
+  }
+
+  // outdoor
+  if (isOutdoor) return 3;
+  if (isIndoor && !OUTDOOR_PLACE.test(text)) return -1;
+  return 0;
+}

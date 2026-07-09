@@ -23,7 +23,8 @@ export function useWeather(city: string) {
 
       setWeather(result.weather);
       setIsFallback(result.isFallback);
-      setError(result.isFallback ? result.error ?? "기본 날씨 정보를 표시합니다." : null);
+      // Soft fallback keeps the amber banner; only hard failures show as errors
+      setError(null);
       setLoading(false);
     }
 

@@ -6,8 +6,13 @@ import {
   isGangwonPlace,
 } from "@/utils/tourRecommendations";
 
-const TOUR_API_KEY = "c9b58d8e4861010b85ef2e455d791ea5ba900a2d0fb5f983def662c867541257";
+const TOUR_API_KEY =
+  process.env.TOUR_API_SERVICE_KEY ??
+  process.env.TOUR_API_KEY ??
+  "c9b58d8e4861010b85ef2e455d791ea5ba900a2d0fb5f983def662c867541257";
 const BASE_URL = "https://apis.data.go.kr/B551011/KorService2";
+/** TourAPI areaCode for 강원특별자치도 */
+const GANGWON_AREA_CODE = "32";
 
 const CONTENT_TYPE_LABELS: Record<string, string> = {
   "12": "관광지",
@@ -111,7 +116,11 @@ export async function searchPlacesByKeyword(
 ): Promise<NormalizedTourPlace[]> {
   const searches = await Promise.all(
     KEYWORD_SEARCH_TYPES.map((type) =>
-      searchTourByKeyword(keyword, type, numOfRows).catch(() => [] as NormalizedTourPlace[]),
+      searchTourByKeywordInGangwon(keyword, type, numOfRows).catch(() =>
+        searchTourByKeyword(keyword, type, numOfRows).catch(
+          () => [] as NormalizedTourPlace[],
+        ),
+      ),
     ),
   );
 
@@ -142,13 +151,39 @@ export async function searchTourByKeyword(
 
 const CITY_SEARCH_TYPES = ["12", "14", "15", "39", "38"] as const;
 
+/** Keyword search scoped to Gangwon (areaCode 32) for cleaner city results */
+async function searchTourByKeywordInGangwon(
+  keyword: string,
+  contentTypeId: string,
+  numOfRows: string,
+): Promise<NormalizedTourPlace[]> {
+  const data = await requestTourApi("/searchKeyword2", {
+    MobileOS: "ETC",
+    MobileApp: "GamjaDori",
+    serviceKey: TOUR_API_KEY,
+    keyword,
+    contentTypeId,
+    areaCode: GANGWON_AREA_CODE,
+    numOfRows,
+    pageNo: "1",
+    arrange: "P",
+    _type: "json",
+  });
+
+  return extractItems(data.response?.body).map((item) => normalizeTourItem(item));
+}
+
 export async function searchTourByCity(
   cityName: string,
   numOfRows = "15",
 ): Promise<NormalizedTourPlace[]> {
   const searches = await Promise.all(
     CITY_SEARCH_TYPES.map((type) =>
-      searchTourByKeyword(cityName, type, numOfRows).catch(() => [] as NormalizedTourPlace[]),
+      searchTourByKeywordInGangwon(cityName, type, numOfRows).catch(() =>
+        searchTourByKeyword(cityName, type, numOfRows).catch(
+          () => [] as NormalizedTourPlace[],
+        ),
+      ),
     ),
   );
 

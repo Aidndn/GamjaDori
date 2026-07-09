@@ -71,22 +71,30 @@ export default function CoursePageClient() {
         const city = resolveCourseCity(primaryAttraction?.city, course?.city);
         const cityId = resolveCityId(city);
         const places = await fetchCityPlaces(city, cityId);
-        generateCourse(style, variantIndex, places);
+        generateCourse(style, variantIndex, places, weather);
       } finally {
         setGenerating(false);
       }
     },
-    [savedAttractions.length, primaryAttraction?.city, course?.city, generateCourse],
+    [
+      savedAttractions.length,
+      primaryAttraction?.city,
+      course?.city,
+      generateCourse,
+      weather,
+    ],
   );
 
   useEffect(() => {
     if (!hydrated) return;
+    if (weatherLoading) return;
     if (shouldGenerate && savedAttractions.length > 0) {
       const style = travelStyle ?? course?.travelStyle ?? DEFAULT_STYLE;
       runGenerate(style).then(() => router.replace("/course"));
     }
   }, [
     hydrated,
+    weatherLoading,
     shouldGenerate,
     savedAttractions.length,
     travelStyle,
@@ -131,7 +139,7 @@ export default function CoursePageClient() {
       const city = resolveCourseCity(primaryAttraction?.city, course?.city);
       const cityId = resolveCityId(city);
       const places = await fetchCityPlaces(city, cityId);
-      const next = regenerateCourse(savedAttractions, course ?? undefined, places);
+      const next = regenerateCourse(savedAttractions, course ?? undefined, places, weather);
       setGeneratedCourse(next);
       setToast("🥔 코스 다시 만들기 완료");
     } finally {

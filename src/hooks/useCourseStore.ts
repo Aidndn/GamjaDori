@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { GeneratedCourse, SavedAttraction, TravelStyleId } from "@/types/course";
 import type { NormalizedTourPlace } from "@/types/tour";
 import { generateOneDayCourse } from "@/data/courseTemplates";
+import type { WeatherInfo } from "@/utils/weather";
 
 const STORAGE_KEY_ATTRACTIONS = "gamjadori-saved-attractions";
 const STORAGE_KEY_COURSE = "gamjadori-generated-course";
@@ -63,12 +64,18 @@ export function useCourseStore() {
   }, []);
 
   const generateCourse = useCallback(
-    (style: TravelStyleId, variantIndex = 0, cityPlaces?: NormalizedTourPlace[]) => {
+    (
+      style: TravelStyleId,
+      variantIndex = 0,
+      cityPlaces?: NormalizedTourPlace[],
+      weather?: WeatherInfo | null,
+    ) => {
       const generated = generateOneDayCourse(
         savedAttractions,
         style,
         variantIndex,
         cityPlaces,
+        weather,
       );
       setCourse(generated);
       setTravelStyleState(style);
