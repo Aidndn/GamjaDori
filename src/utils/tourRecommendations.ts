@@ -85,6 +85,12 @@ export function normalizeCityKeyword(cityName: string): string {
   return cityName.replace(/(시|군)$/, "").trim();
 }
 
+export function isGangwonPlace(place: NormalizedTourPlace): boolean {
+  const text = `${place.address} ${place.city}`;
+  if (text.includes("강원")) return true;
+  return GANGWON_CITY_NAMES.some((name) => text.includes(name));
+}
+
 export function isAwkwardPlace(place: NormalizedTourPlace): boolean {
   const text = `${place.title} ${place.description}`;
   if (place.title.length < 2) return true;

@@ -7,12 +7,19 @@ export function getCityIdByName(cityName: string): string | undefined {
   return gangwonCities.find((city) => city.name === cityName)?.id;
 }
 
-export function buildAttractionHref(id: string, city?: string): string {
+export function buildAttractionHref(
+  id: string,
+  city?: string,
+  contentTypeId?: string,
+  title?: string,
+): string {
+  const params = new URLSearchParams();
   const cityId = city ? getCityIdByName(city) : undefined;
-  if (/^\d+$/.test(id) && cityId) {
-    return `/attraction/${id}?city=${cityId}`;
-  }
-  return `/attraction/${id}`;
+  if (cityId) params.set("city", cityId);
+  if (contentTypeId) params.set("contentTypeId", contentTypeId);
+  if (title) params.set("title", title);
+  const query = params.toString();
+  return query ? `/attraction/${id}?${query}` : `/attraction/${id}`;
 }
 
 export function getFavoriteId(attraction: Pick<TouristAttraction, "id" | "contentId">): string {

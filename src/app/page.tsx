@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HomePopularCourses, HomeWeatherStrip } from "@/components/home";
+import { HomePopularCourses, HomeSearchBar, HomeWeatherStrip } from "@/components/home";
 import { BottomNavigation } from "@/components/layout/BottomNavigation";
 
 const travelStyles = [
@@ -39,25 +39,6 @@ function IconUser() {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function IconSearch() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
-}
-
-function IconMic() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-      <line x1="12" x2="12" y1="19" y2="22" />
     </svg>
   );
 }
@@ -143,23 +124,7 @@ export default function Home() {
       <main className="space-y-9 px-5 pb-32">
         {/* Search */}
         <section>
-          <div className="flex items-center gap-3 rounded-2xl border border-[#E8EDF3] bg-[#F8FAFC] px-4 py-4 shadow-[0_2px_16px_rgba(15,23,42,0.04)] transition-all focus-within:border-[#93C5FD] focus-within:bg-white focus-within:shadow-[0_4px_24px_rgba(59,130,246,0.1)]">
-            <span className="shrink-0 text-[#94A3B8]">
-              <IconSearch />
-            </span>
-            <input
-              type="search"
-              placeholder="어디로 여행 가고 싶나요?"
-              className="min-w-0 flex-1 bg-transparent text-[15px] text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
-            />
-            <button
-              type="button"
-              aria-label="음성 검색"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-[#3B82F6] transition-colors hover:bg-[#DBEAFE]"
-            >
-              <IconMic />
-            </button>
-          </div>
+          <HomeSearchBar />
         </section>
 
         {/* Hero */}

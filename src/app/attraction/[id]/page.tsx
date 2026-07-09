@@ -5,10 +5,16 @@ import {
   getFeaturedAttraction,
   getNearbyAttractions,
 } from "@/data/attractions";
+import { createApiFallback } from "@/utils/apiFallback";
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ fallback?: string; city?: string }>;
+  searchParams: Promise<{
+    fallback?: string;
+    city?: string;
+    title?: string;
+    contentTypeId?: string;
+  }>;
 };
 
 function isApiContentId(id: string): boolean {
@@ -17,7 +23,11 @@ function isApiContentId(id: string): boolean {
 
 export default async function AttractionPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { fallback: fallbackParam, city: cityParam } = await searchParams;
+  const {
+    fallback: fallbackParam,
+    city: cityParam,
+    title: titleParam,
+  } = await searchParams;
 
   let fallback = getAttractionById(id);
 
@@ -29,17 +39,22 @@ export default async function AttractionPage({ params, searchParams }: PageProps
     fallback = getFeaturedAttraction(cityParam);
   }
 
+  if (!fallback && isApiContentId(id)) {
+    fallback = createApiFallback(id, { title: titleParam, cityId: cityParam });
+  }
+
   if (!fallback) {
     notFound();
   }
 
   const nearby = getNearbyAttractions(fallback);
   const contentId = isApiContentId(id) ? id : null;
+  const searchKeyword = titleParam ?? fallback.name;
 
   return (
     <AttractionDetailContainer
       contentId={contentId}
-      searchKeyword={fallback.name}
+      searchKeyword={searchKeyword}
       fallback={fallback}
       nearby={nearby}
     />

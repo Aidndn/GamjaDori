@@ -2,6 +2,8 @@ import type { NormalizedTourPlace } from "@/types/tour";
 import {
   dedupePlaces,
   filterTourPlaces,
+  isAwkwardPlace,
+  isGangwonPlace,
 } from "@/utils/tourRecommendations";
 
 const TOUR_API_KEY = "c9b58d8e4861010b85ef2e455d791ea5ba900a2d0fb5f983def662c867541257";
@@ -99,6 +101,23 @@ async function requestTourApi(path: string, params: Record<string, string>): Pro
   }
 
   return data;
+}
+
+const KEYWORD_SEARCH_TYPES = ["12", "14", "15", "39", "38"] as const;
+
+export async function searchPlacesByKeyword(
+  keyword: string,
+  numOfRows = "10",
+): Promise<NormalizedTourPlace[]> {
+  const searches = await Promise.all(
+    KEYWORD_SEARCH_TYPES.map((type) =>
+      searchTourByKeyword(keyword, type, numOfRows).catch(() => [] as NormalizedTourPlace[]),
+    ),
+  );
+
+  return dedupePlaces(searches.flat()).filter(
+    (place) => isGangwonPlace(place) && !isAwkwardPlace(place),
+  );
 }
 
 export async function searchTourByKeyword(
